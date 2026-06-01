@@ -7,7 +7,8 @@ from PIL import Image
 import textwrap
 
 # ── Configuration & Setup ─────────────────────────────────────────────────────
-BACKEND_URL = "http://localhost:8000"
+# BACKEND_URL = "http://localhost:8000"
+BACKEND_URL = "https://asadullahdogarr-teachable-machine-api.hf.space" 
 
 st.set_page_config(
     page_title="Teachable Machine",
