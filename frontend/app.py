@@ -1,9 +1,12 @@
 import io
 import requests
+import pandas as pd
+import altair as alt
 import streamlit as st
 from PIL import Image
+import textwrap
 
-# ── Configuration ─────────────────────────────────────────────────────────────
+# ── Configuration & Setup ─────────────────────────────────────────────────────
 BACKEND_URL = "http://localhost:8000"
 
 st.set_page_config(
@@ -13,685 +16,753 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── Custom CSS ────────────────────────────────────────────────────────────────
+# ── Custom CSS Injection (Strict AI Research Lab Theme) ───────────────────────
 st.markdown("""
 <style>
-    /* Import fonts */
-    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700;800&display=swap');
 
-    /* Root variables */
     :root {
-        --primary: #00ff88;
-        --primary-dim: #00cc6a;
-        --bg-dark: #0d0f14;
-        --bg-card: #161b24;
-        --bg-card2: #1c2333;
-        --text-main: #e8eaf0;
-        --text-muted: #6b7a99;
-        --border: #2a3347;
-        --danger: #ff4d6d;
-        --warning: #ffb347;
+        --bg: #080b12;
+        --surface: #0d1117;
+        --elevated: #111827;
+        --border: rgba(255,255,255,0.06);
+        --border-hover: rgba(139,92,246,0.5);
+        --primary: #7c3aed;
+        --secondary: #2563eb;
+        --gradient: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
+        --success: #059669;
+        --warning: #d97706;
+        --text-pri: #f1f5f9;
+        --text-sec: #64748b;
+        --text-mut: #334155;
     }
 
-    /* Global overrides */
+    /* Global Theme Overrides */
     .stApp {
-        background-color: var(--bg-dark);
-        font-family: 'DM Sans', sans-serif;
-        color: var(--text-main);
+        background-color: var(--bg) !important;
+        background-image: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px) !important;
+        background-size: 24px 24px !important;
+        font-family: 'Space Grotesk', sans-serif !important;
+    }
+    
+    #MainMenu, footer, [data-testid="stHeader"] { visibility: hidden !important; display: none !important; }
+
+    /* Typography */
+    h1, h2, h3, h4, p, span, div { font-family: 'Space Grotesk', sans-serif !important; }
+    h3 { font-size: 1.3rem !important; font-weight: 700 !important; color: var(--text-pri) !important; }
+    p, span { color: var(--text-sec); font-size: 0.95rem; }
+
+    /* Custom Hero Section */
+    .hero-wrapper {
+        display: flex; justify-content: space-between; align-items: center;
+        width: 100%; padding: 3rem 2rem; margin-bottom: 2rem;
+        background: radial-gradient(circle at 80% 50%, rgba(124, 58, 237, 0.15) 0%, transparent 60%);
+        position: relative; overflow: hidden; border-radius: 24px;
+        border: 1px solid var(--border); background-color: var(--surface);
+    }
+    .hero-wrapper::before {
+        content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><filter id="noiseFilter"><feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(%23noiseFilter)" opacity="0.03"/></svg>');
+        pointer-events: none;
+    }
+    .hero-pills { display: flex; gap: 10px; margin-bottom: 1rem; }
+    .hero-pill { 
+        font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase;
+        background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+        padding: 6px 12px; border-radius: 20px; color: var(--text-sec); font-weight: 700;
+    }
+    .hero-title {
+        font-size: 3rem !important; font-weight: 800 !important; margin: 0 0 10px 0;
+        background: linear-gradient(135deg, #ffffff 30%, #7c3aed 100%);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 1.1;
+    }
+    .hero-sub { color: var(--text-sec); font-size: 1.1rem; max-width: 500px; font-weight: 500; }
+    
+    /* Animated SVG Brain Icon */
+    .brain-icon { width: 140px; height: 140px; }
+    .brain-path {
+        fill: none; stroke: var(--secondary); stroke-width: 2;
+        stroke-dasharray: 100; stroke-dashoffset: 100;
+        animation: drawBrain 3s ease-in-out infinite alternate, glowBrain 2s infinite alternate;
+    }
+    .brain-node { fill: var(--primary); animation: pulseNode 1.5s infinite alternate; }
+    @keyframes drawBrain { to { stroke-dashoffset: 0; } }
+    @keyframes glowBrain { from { filter: drop-shadow(0 0 2px var(--secondary)); } to { filter: drop-shadow(0 0 15px var(--primary)); } }
+    @keyframes pulseNode { from { transform: scale(1); opacity: 0.7; } to { transform: scale(1.5); opacity: 1; } }
+
+    /* Sidebar Redesign */
+    section[data-testid="stSidebar"] {
+        background-color: #060810 !important;
+        border-right: 1px solid var(--border) !important;
+    }
+    section[data-testid="stSidebar"] > div { padding: 0 !important; }
+    .sidebar-top-bar { height: 3px; width: 100%; transition: background 0.3s; }
+    .sidebar-status-box { padding: 10px 24px; display: flex; align-items: center; gap: 8px; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+    .sidebar-logo-area { padding: 32px 24px 24px 24px; display: flex; align-items: center; gap: 16px; }
+    .tm-monogram {
+        width: 48px; height: 48px; border-radius: 12px; background: var(--gradient);
+        display: flex; justify-content: center; align-items: center;
+        font-weight: 800; font-size: 1.2rem; color: white; box-shadow: 0 4px 20px rgba(124, 58, 237, 0.4);
+    }
+    .tm-title { font-weight: 800; color: var(--text-pri); font-size: 1.1rem; line-height: 1.2; }
+    .tm-version { font-size: 0.75rem; color: var(--text-sec); font-weight: 500; }
+    .sidebar-content-padding { padding: 0 24px; }
+
+    /* Readiness Segmented Meter */
+    .readiness-container { display: flex; justify-content: space-between; align-items: center; margin: 15px 0 30px 0; position: relative; }
+    .readiness-line { position: absolute; top: 50%; left: 0; right: 0; height: 2px; background: var(--border); z-index: 0; transform: translateY(-50%); }
+    .readiness-line-fill { position: absolute; top: 50%; left: 0; height: 2px; background: var(--gradient); z-index: 0; transform: translateY(-50%); transition: width 0.5s; }
+    .readiness-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--surface); border: 2px solid var(--text-mut); z-index: 1; transition: all 0.3s; }
+    .readiness-dot.active { border-color: var(--primary); background: var(--primary); box-shadow: 0 0 10px var(--primary); }
+
+    /* Dataset Mini Cards */
+    .mini-class-card {
+        background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+        padding: 12px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .mini-class-card:hover { transform: translateY(-2px); border-color: var(--border-hover); box-shadow: 0 4px 15px rgba(124, 58, 237, 0.1); }
+    .mcc-header { display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; font-weight: 700; color: var(--text-pri); }
+    .mcc-badge { background: rgba(255,255,255,0.05); padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; color: var(--text-sec); }
+    .mcc-bar-bg { width: 100%; height: 4px; background: var(--elevated); border-radius: 2px; overflow: hidden; }
+    .mcc-bar-fill { height: 100%; background: var(--gradient); }
+
+    /* Custom Pill Navigation (Radio Hack) */
+    div[role="radiogroup"] {
+        display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center;
+        background: var(--surface); padding: 8px; border-radius: 20px; border: 1px solid var(--border);
+        margin-bottom: 2rem;
+    }
+    div[role="radiogroup"] > label {
+        background: var(--elevated) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 14px !important;
+        padding: 12px 24px !important;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    }
+    div[role="radiogroup"] > label:hover { border-color: var(--border-hover) !important; transform: translateY(-2px); }
+    div[role="radiogroup"] > label[data-checked="true"] {
+        background: var(--gradient) !important;
+        border-color: transparent !important;
+        box-shadow: 0 4px 20px rgba(124, 58, 237, 0.4) !important;
+    }
+    div[role="radiogroup"] > label > div:first-child { display: none !important; /* Hide radio circle */ }
+    div[role="radiogroup"] p { font-weight: 700 !important; font-size: 1.05rem !important; margin: 0 !important; }
+    div[role="radiogroup"] > label[data-checked="true"] p { color: white !important; }
+
+    /* Glassmorphism Containers */
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        background: rgba(13, 17, 23, 0.8) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 16px !important;
+        backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2) !important;
+        padding: 1.5rem !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    div[data-testid="stVerticalBlockBorderWrapper"]:hover {
+        border-color: var(--border-hover) !important;
+        transform: translateY(-3px);
     }
 
-    /* Sidebar */
-    [data-testid="stSidebar"] {
-        background-color: var(--bg-card) !important;
-        border-right: 1px solid var(--border);
+    /* Primary Buttons & Animations */
+    button[kind="primary"] {
+        background: var(--gradient) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 12px !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.05em !important;
+        box-shadow: 0 4px 15px rgba(124, 58, 237, 0.3) !important;
+        position: relative; overflow: hidden;
+        transition: all 0.2s ease !important;
+    }
+    button[kind="primary"]:active { transform: scale(0.98) !important; }
+    
+    /* Shimmer Sweep */
+    button[kind="primary"]::after {
+        content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
+        background: linear-gradient(to right, transparent, rgba(255,255,255,0.25), transparent);
+        transform: skewX(-20deg); animation: shimmer 3s infinite;
+    }
+    @keyframes shimmer { 0% { left: -100%; } 100% { left: 200%; } }
+
+    /* Train Button Specific Massive Style */
+    .train-btn-container button[kind="primary"] {
+        height: 60px !important; font-size: 1.2rem !important;
+        animation: pulseRing 2s infinite cubic-bezier(0.66, 0, 0, 1) !important;
+    }
+    @keyframes pulseRing {
+        0% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.6); }
+        70% { box-shadow: 0 0 0 20px rgba(124, 58, 237, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0); }
     }
 
-    /* Headings */
-    h1, h2, h3 { font-family: 'Space Mono', monospace; }
-
-    h1 {
-        color: var(--primary);
-        font-size: 1.6rem;
-        letter-spacing: -0.5px;
-        margin-bottom: 0;
+    /* Input & Floating Label Hacks */
+    div[data-baseweb="input"] {
+        background-color: var(--elevated) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 10px;
     }
-
-    /* Cards */
-    .card {
-        background: var(--bg-card);
-        border: 1px solid var(--border);
+    div[data-baseweb="input"]:focus-within {
+        border-color: var(--primary) !important;
+        box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2) !important;
+    }
+    
+    /* File Uploader "Marching Ants" */
+    div[data-testid="stFileUploaderDropzone"] {
+        background-color: rgba(255,255,255,0.02) !important;
+        border: none !important;
         border-radius: 12px;
-        padding: 1.2rem 1.4rem;
-        margin-bottom: 1rem;
+        padding: 32px 24px !important;
+        background-image: 
+            linear-gradient(90deg, var(--primary) 50%, transparent 50%),
+            linear-gradient(90deg, var(--primary) 50%, transparent 50%),
+            linear-gradient(0deg, var(--primary) 50%, transparent 50%),
+            linear-gradient(0deg, var(--primary) 50%, transparent 50%);
+        background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+        background-size: 16px 2px, 16px 2px, 2px 16px, 2px 16px;
+        background-position: left top, right bottom, left bottom, right top;
+        animation: border-dance 1s infinite linear;
+        transition: background-color 0.3s;
+    }
+    div[data-testid="stFileUploaderDropzone"]:hover { background-color: rgba(124, 58, 237, 0.05) !important; }
+    @keyframes border-dance { 100% { background-position: left 16px top, right 16px bottom, left bottom 16px, right top 16px; } }
+
+    /* Hide Streamlit's default SVG/font icon and 'Drag and drop' text to fix overlapping */
+    div[data-testid="stFileUploaderDropzone"] > section > svg,
+    div[data-testid="stFileUploaderDropzone"] > section > span,
+    div[data-testid="stFileUploaderDropzone"] > section > div:first-of-type {
+        display: none !important;
     }
 
-    .card-title {
-        font-family: 'Space Mono', monospace;
-        font-size: 0.75rem;
-        letter-spacing: 2px;
-        text-transform: uppercase;
-        color: var(--text-muted);
-        margin-bottom: 0.8rem;
+    /* Style the browse files button inside the dropzone */
+    div[data-testid="stFileUploaderDropzone"] button {
+        background: rgba(255, 255, 255, 0.05) !important;
+        color: var(--text-pri) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 8px !important;
+        padding: 4px 16px !important;
+        font-family: 'Space Grotesk', sans-serif !important;
+        font-weight: 600 !important;
+        z-index: 10;
+        margin-top: 10px !important;
+    }
+    div[data-testid="stFileUploaderDropzone"] button:hover {
+        border-color: var(--primary) !important;
+        background: rgba(124, 58, 237, 0.1) !important;
     }
 
-    /* Stat badges */
-    .stat-row {
-        display: flex;
-        gap: 0.8rem;
-        flex-wrap: wrap;
-        margin-bottom: 1rem;
-    }
+    /* Masonry Grid Preview */
+    [data-testid="stImage"] { margin-bottom: 12px; border-radius: 8px; overflow: hidden; }
+    div[data-testid="column"]:nth-child(1) [data-testid="stImage"] img { height: 160px; object-fit: cover; }
+    div[data-testid="column"]:nth-child(2) [data-testid="stImage"] img { height: 100px; object-fit: cover; }
+    div[data-testid="column"]:nth-child(3) [data-testid="stImage"] img { height: 140px; object-fit: cover; }
 
-    .stat-badge {
-        background: var(--bg-card2);
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        padding: 0.5rem 0.9rem;
-        font-family: 'Space Mono', monospace;
-        font-size: 0.78rem;
-    }
+    /* Metrics Styling */
+    [data-testid="stMetricValue"] { font-size: 2.8rem !important; font-weight: 800 !important; color: var(--text-pri) !important; line-height: 1.1 !important; }
+    [data-testid="stMetricLabel"] { font-size: 0.7rem !important; font-weight: 700 !important; color: var(--text-sec) !important; text-transform: uppercase; letter-spacing: 0.15em; }
 
-    .stat-badge .val {
-        color: var(--primary);
-        font-size: 1.1rem;
-        font-weight: 700;
-        display: block;
+    /* Architecture Timeline */
+    .timeline { position: relative; padding-left: 30px; margin-top: 1rem; }
+    .timeline::before { content: ''; position: absolute; left: 15px; top: 10px; bottom: 20px; width: 2px; border-left: 2px dashed var(--border); }
+    .tl-item { position: relative; margin-bottom: 24px; }
+    .tl-dot {
+        position: absolute; left: -30px; top: 0px; width: 32px; height: 32px; border-radius: 50%;
+        background: var(--gradient); display: flex; align-items: center; justify-content: center;
+        color: white; font-weight: 800; font-size: 0.9rem; box-shadow: 0 0 10px rgba(124, 58, 237, 0.4);
+        z-index: 2;
     }
+    .tl-content { padding-left: 16px; }
+    .tl-title { font-weight: 700; color: var(--text-pri); font-size: 1.1rem; margin-bottom: 4px; }
+    .tl-desc { font-size: 0.85rem; color: var(--text-sec); line-height: 1.4; }
 
-    .stat-badge .lbl {
-        color: var(--text-muted);
-        font-size: 0.65rem;
-        text-transform: uppercase;
-        letter-spacing: 1px;
+    /* Success Card (Train) */
+    .success-card {
+        border: 1px solid var(--success); background: rgba(5, 150, 105, 0.05);
+        border-radius: 16px; padding: 24px; text-align: center;
+        box-shadow: 0 0 30px rgba(5, 150, 105, 0.1); animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
+    .success-icon { font-size: 3rem; margin-bottom: 10px; animation: scaleBounce 1s infinite alternate; }
+    .success-title { font-size: 1.5rem; font-weight: 800; color: var(--success); margin-bottom: 10px; }
+    .chip-container { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .class-chip { background: var(--elevated); border: 1px solid var(--border); padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; color: var(--text-pri); font-weight: 600; }
+    @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    @keyframes scaleBounce { from { transform: scale(1); } to { transform: scale(1.1); } }
 
-    /* Class pills */
-    .class-pill {
-        display: inline-block;
-        background: #1a2640;
-        border: 1px solid #2a4080;
-        color: #7aacff;
-        border-radius: 20px;
-        padding: 3px 12px;
-        font-size: 0.78rem;
-        font-family: 'Space Mono', monospace;
-        margin: 3px;
+    /* Scanner Loading State */
+    .scanner-container { width: 100%; height: 300px; border-radius: 16px; border: 1px solid var(--border); background: var(--surface); position: relative; overflow: hidden; display: flex; justify-content: center; align-items: center;}
+    .scanner-line { position: absolute; top: 0; left: 0; bottom: 0; width: 4px; background: var(--secondary); box-shadow: 0 0 20px 10px rgba(37, 99, 235, 0.4); animation: scanLine 2s infinite ease-in-out; }
+    .scanner-text { color: var(--secondary); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; animation: pulseText 1s infinite; }
+    @keyframes scanLine { 0% { left: 0%; } 50% { left: 100%; } 100% { left: 0%; } }
+    @keyframes pulseText { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+
+    /* Prediction Result Hero */
+    .result-hero-wrapper {
+        padding: 2px; border-radius: 24px; background: var(--gradient);
+        box-shadow: 0 10px 40px rgba(124, 58, 237, 0.25); margin-bottom: 2rem;
+        animation: fadeInSlide 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     }
-
-    /* Prediction result */
-    .prediction-box {
-        background: linear-gradient(135deg, #0d1f14, #0a1a2e);
-        border: 1px solid var(--primary);
-        border-radius: 12px;
-        padding: 1.4rem;
-        text-align: center;
-        margin-bottom: 1rem;
+    .result-hero-inner {
+        background: var(--surface); border-radius: 22px; padding: 2.5rem 2rem;
+        display: flex; flex-direction: column; align-items: center; text-align: center;
     }
+    .rh-label { font-size: 0.7rem; font-weight: 700; color: var(--text-sec); letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 10px; }
+    .rh-class { font-size: 4rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text-pri); margin-bottom: 20px; line-height: 1; text-shadow: 0 4px 20px rgba(255,255,255,0.1); }
+    
+    /* Pure CSS Circular Progress */
+    .circle-wrap { width: 120px; height: 120px; position: relative; }
+    .circle-chart { width: 100%; height: 100%; transform: rotate(-90deg); }
+    .circle-bg { fill: none; stroke: var(--elevated); stroke-width: 2.5; }
+    .circle-fill { fill: none; stroke: url(#grad); stroke-width: 2.5; stroke-linecap: round; animation: fillRing 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+    .circle-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1.4rem; font-weight: 800; color: var(--text-pri); }
+    @keyframes fillRing { 0% { stroke-dasharray: 0, 100; } }
 
-    .prediction-label {
-        font-family: 'Space Mono', monospace;
-        font-size: 0.7rem;
-        color: var(--text-muted);
-        letter-spacing: 2px;
-        text-transform: uppercase;
-    }
+    /* Custom Animated HTML Bar Chart */
+    .custom-bar-chart { display: flex; flex-direction: column; gap: 12px; margin-top: 1rem; }
+    .cb-row { display: flex; align-items: center; gap: 12px; }
+    .cb-label { width: 100px; font-weight: 700; font-size: 0.9rem; color: var(--text-pri); text-align: right; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
+    .cb-track { flex-grow: 1; height: 8px; background: var(--elevated); border-radius: 4px; overflow: hidden; }
+    .cb-fill { height: 100%; width: 0%; border-radius: 4px; animation: growBar 1s cubic-bezier(0.4, 0, 0.2, 1) forwards 0.2s; }
+    .cb-fill.winner { background: var(--gradient); box-shadow: 0 0 10px rgba(124, 58, 237, 0.4); }
+    .cb-fill.loser { background: var(--text-mut); }
+    .cb-val { width: 45px; font-size: 0.8rem; font-weight: 700; color: var(--text-sec); }
+    @keyframes growBar { to { width: var(--target-width); } }
+    @keyframes fadeInSlide { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 
-    .prediction-class {
-        font-family: 'Space Mono', monospace;
-        font-size: 2rem;
-        font-weight: 700;
-        color: var(--primary);
-        margin: 0.3rem 0;
-    }
-
-    .prediction-conf {
-        font-size: 1rem;
-        color: var(--text-muted);
-    }
-
-    /* Confidence bar wrapper */
-    .conf-bar-row {
-        display: flex;
-        align-items: center;
-        gap: 0.7rem;
-        margin-bottom: 0.6rem;
-    }
-
-    .conf-bar-label {
-        font-family: 'Space Mono', monospace;
-        font-size: 0.7rem;
-        color: var(--text-main);
-        width: 110px;
-        flex-shrink: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .conf-bar-track {
-        flex: 1;
-        background: var(--bg-card2);
-        border-radius: 4px;
-        height: 10px;
-        overflow: hidden;
-    }
-
-    .conf-bar-fill {
-        height: 100%;
-        border-radius: 4px;
-        transition: width 0.6s ease;
-    }
-
-    .conf-bar-pct {
-        font-family: 'Space Mono', monospace;
-        font-size: 0.68rem;
-        color: var(--text-muted);
-        width: 38px;
-        text-align: right;
-        flex-shrink: 0;
-    }
-
-    /* Status pills */
-    .status-ok {
-        color: var(--primary);
-        font-family: 'Space Mono', monospace;
-        font-size: 0.75rem;
-    }
-
-    .status-warn {
-        color: var(--warning);
-        font-family: 'Space Mono', monospace;
-        font-size: 0.75rem;
-    }
-
-    /* Divider */
-    .divider {
-        border: none;
-        border-top: 1px solid var(--border);
-        margin: 1rem 0;
-    }
-
-    /* Override streamlit button styles */
-    .stButton > button {
-        font-family: 'Space Mono', monospace;
-        font-size: 0.78rem;
-        letter-spacing: 1px;
-        border-radius: 8px;
-        border: 1px solid var(--border);
-        background: var(--bg-card2);
-        color: var(--text-main);
-        transition: all 0.2s ease;
-    }
-
-    .stButton > button:hover {
-        border-color: var(--primary);
-        color: var(--primary);
-        background: #0d1f14;
-    }
-
-    /* File uploader area */
-    [data-testid="stFileUploader"] {
-        border: 1px dashed var(--border);
-        border-radius: 10px;
-        background: var(--bg-card2);
-    }
-
-    /* Input fields */
-    .stTextInput > div > div > input {
-        background: var(--bg-card2);
-        border: 1px solid var(--border);
-        color: var(--text-main);
-        border-radius: 8px;
-        font-family: 'DM Sans', sans-serif;
-    }
-
-    /* Hide streamlit menu/footer */
-    #MainMenu { visibility: hidden; }
-    footer { visibility: hidden; }
-
-    /* Camera input */
-    [data-testid="stCameraInput"] > div {
-        border: 1px dashed var(--border);
-        border-radius: 10px;
-        background: var(--bg-card2);
-    }
-
-    /* Selectbox */
-    .stSelectbox > div > div {
-        background: var(--bg-card2);
-        border: 1px solid var(--border);
-        border-radius: 8px;
-    }
-
-    /* Info / warning / success boxes */
-    .stAlert {
-        border-radius: 10px;
-        font-family: 'DM Sans', sans-serif;
-        font-size: 0.85rem;
-    }
 </style>
 """, unsafe_allow_html=True)
 
 
-# ── Session State Defaults ────────────────────────────────────────────────────
+# ── Session State Management ──────────────────────────────────────────────────
 if "model_trained" not in st.session_state:
     st.session_state.model_trained = False
-
+if "model_accuracy" not in st.session_state:
+    st.session_state.model_accuracy = None
 if "dataset_info" not in st.session_state:
     st.session_state.dataset_info = None
-
 if "last_prediction" not in st.session_state:
     st.session_state.last_prediction = None
 
 
-# ── Helper Functions ──────────────────────────────────────────────────────────
+# ── API Helper Functions ──────────────────────────────────────────────────────
+@st.cache_data(ttl=2)
 def fetch_dataset_info():
     """Fetch current dataset stats from backend."""
     try:
-        r = requests.get(f"{BACKEND_URL}/dataset-info", timeout=5)
-        if r.status_code == 200:
-            return r.json()
-    except requests.exceptions.ConnectionError:
+        r = requests.get(f"{BACKEND_URL}/dataset-info", timeout=2)
+        return r.json() if r.status_code == 200 else None
+    except requests.exceptions.RequestException:
         return None
-    return None
-
 
 def check_backend():
     """Return True if backend is reachable."""
     try:
-        r = requests.get(f"{BACKEND_URL}/", timeout=3)
+        r = requests.get(f"{BACKEND_URL}/", timeout=2)
         return r.status_code == 200
-    except Exception:
+    except requests.exceptions.RequestException:
         return False
 
 
-def color_for_index(i, total):
-    """Return a colour from green → blue gradient based on rank."""
-    colors = ["#00ff88", "#00e57a", "#00cc6a", "#00b35b", "#009948",
-              "#4da6ff", "#3d8fef", "#2d78df", "#1d61cf", "#0d4abf"]
-    return colors[min(i, len(colors) - 1)]
-
-
-# ── Sidebar ───────────────────────────────────────────────────────────────────
+# ── UI Layout: Sidebar (Full Redesign) ────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## 🧠 Teachable\nMachine")
-    st.markdown("---")
-
-    # Backend status
     backend_alive = check_backend()
-    if backend_alive:
-        st.markdown('<p class="status-ok">● Backend connected</p>', unsafe_allow_html=True)
-    else:
-        st.markdown('<p class="status-warn">● Backend offline — start FastAPI first</p>', unsafe_allow_html=True)
-        st.code("uvicorn main:app --reload", language="bash")
+    status_color = "var(--success)" if backend_alive else "#ef4444"
+    status_text = "SYSTEM ONLINE" if backend_alive else "SYSTEM OFFLINE"
+    status_icon = "🟢" if backend_alive else "🔴"
+
+    st.markdown(f"""
+<div class="sidebar-top-bar" style="background: {status_color}"></div>
+<div class="sidebar-status-box">
+  <span>{status_icon}</span> <span style="color: {status_color}">{status_text}</span>
+</div>
+<div class="sidebar-logo-area">
+  <div class="tm-monogram">TM</div>
+  <div>
+    <div class="tm-title">Teachable<br>Machine</div>
+    <div class="tm-version">v1.0 · AI Research Lab</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+    
+    if not backend_alive:
+        st.markdown("<div class='sidebar-content-padding'>", unsafe_allow_html=True)
+        st.error("FastAPI backend is offline. Run `uvicorn main:app --reload`")
+        st.markdown("</div>", unsafe_allow_html=True)
         st.stop()
 
-    st.markdown("---")
-
-    # Dataset summary
     info = fetch_dataset_info()
     st.session_state.dataset_info = info
 
-    if info and info["total_images"] > 0:
-        classes = info["classes"]
-        num_classes = len(classes)
-        total_imgs = info["total_images"]
+    st.markdown("<div class='sidebar-content-padding'>", unsafe_allow_html=True)
+    
+    # 4-Dot Readiness Indicator
+    num_classes = len(info.get("classes", {})) if info else 0
+    c1 = num_classes >= 1
+    c2 = num_classes >= 2
+    c3 = st.session_state.model_trained
+    c4 = st.session_state.model_trained
 
-        st.markdown(f"""
-        <div class="stat-row">
-            <div class="stat-badge">
-                <span class="val">{num_classes}</span>
-                <span class="lbl">Classes</span>
-            </div>
-            <div class="stat-badge">
-                <span class="val">{total_imgs}</span>
-                <span class="lbl">Images</span>
-            </div>
+    w1 = "100%" if c2 else ("50%" if c1 else "0%")
+    w2 = "100%" if c3 else "0%"
+    w3 = "100%" if c4 else "0%"
+
+    st.markdown(f"""
+<div style="font-size:0.7rem; font-weight:700; color:var(--text-sec); letter-spacing:0.15em; text-transform:uppercase;">Deployment Readiness</div>
+<div class="readiness-container">
+  <div class="readiness-line"></div>
+  <div class="readiness-dot {'active' if c1 else ''}"></div>
+  <div style="flex-grow:1; position:relative; height:2px;">
+    <div class="readiness-line-fill" style="width:{w1}"></div>
+  </div>
+  <div class="readiness-dot {'active' if c2 else ''}"></div>
+  <div style="flex-grow:1; position:relative; height:2px;">
+    <div class="readiness-line-fill" style="width:{w2}"></div>
+  </div>
+  <div class="readiness-dot {'active' if c3 else ''}"></div>
+  <div style="flex-grow:1; position:relative; height:2px;">
+    <div class="readiness-line-fill" style="width:{w3}"></div>
+  </div>
+  <div class="readiness-dot {'active' if c4 else ''}"></div>
+</div>
+<div style="font-size:0.75rem; color:var(--text-sec); display:flex; justify-content:space-between; margin-top:-20px; margin-bottom:30px;">
+  <span>Add</span><span>Train</span><span>Ready</span>
+</div>
+""", unsafe_allow_html=True)
+
+    # Dataset Mini Cards
+    if info and info.get("total_images", 0) > 0:
+        st.markdown("<div style='font-size:0.7rem; font-weight:700; color:var(--text-sec); letter-spacing:0.15em; text-transform:uppercase; margin-bottom:10px;'>Classes Embedded</div>", unsafe_allow_html=True)
+        total = info["total_images"]
+        for cls, count in info["classes"].items():
+            pct = (count / total) * 100
+            st.markdown(f"""
+<div class="mini-class-card">
+  <div class="mcc-header">
+    <span>{cls}</span>
+    <span class="mcc-badge">{count} imgs</span>
+  </div>
+  <div class="mcc-bar-bg"><div class="mcc-bar-fill" style="width: {pct}%;"></div></div>
+</div>
+""", unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+# ── Main UI: Full-Width Hero ──────────────────────────────────────────────────
+st.markdown("""
+<div class="hero-wrapper">
+    <div>
+        <div class="hero-pills">
+            <span class="hero-pill">3 Steps</span>
+            <span class="hero-pill">No GPU Required</span>
         </div>
-        """, unsafe_allow_html=True)
-
-        st.markdown('<p class="card-title">Loaded Classes</p>', unsafe_allow_html=True)
-        pills_html = "".join(
-            f'<span class="class-pill">{cls} <b style="color:#00ff88">({cnt})</b></span>'
-            for cls, cnt in classes.items()
-        )
-        st.markdown(pills_html, unsafe_allow_html=True)
-
-        if st.session_state.model_trained:
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown('<p class="status-ok">✓ Model trained & ready</p>', unsafe_allow_html=True)
-    else:
-        st.markdown(
-            '<p style="color:#6b7a99; font-size:0.82rem;">No dataset yet.<br>Upload images to get started.</p>',
-            unsafe_allow_html=True
-        )
-
-    st.markdown("---")
-    st.markdown(
-        '<p style="color:#3d4d66; font-size:0.7rem; font-family: Space Mono, monospace;">'
-        'MobileNetV3 + LogisticRegression<br>Transfer Learning Pipeline</p>',
-        unsafe_allow_html=True
-    )
+        <h1 class="hero-title">Teachable<br>Machine</h1>
+        <p class="hero-sub">Train a production-grade image classifier in seconds directly in the browser via Transfer Learning.</p>
+    </div>
+    <div style="position:relative; margin-right: 2rem;">
+        <svg class="brain-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <path class="brain-path" d="M50 90 C30 90 10 70 10 50 C10 30 25 15 40 10 C45 25 55 25 60 10 C75 15 90 30 90 50 C90 70 70 90 50 90 Z M50 15 V90 M25 35 Q50 50 75 35 M30 65 Q50 50 70 65" />
+            <circle class="brain-node" cx="50" cy="50" r="4" />
+            <circle class="brain-node" cx="25" cy="35" r="3" style="animation-delay: 0.2s;" />
+            <circle class="brain-node" cx="75" cy="35" r="3" style="animation-delay: 0.4s;" />
+            <circle class="brain-node" cx="30" cy="65" r="3" style="animation-delay: 0.6s;" />
+            <circle class="brain-node" cx="70" cy="65" r="3" style="animation-delay: 0.8s;" />
+        </svg>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 
-# ── Main Layout ───────────────────────────────────────────────────────────────
-st.markdown("# 🧠 Teachable Machine")
-st.markdown(
-    '<p style="color:#6b7a99; margin-top:-0.5rem; margin-bottom:1.5rem;">'
-    'Train a custom image classifier in seconds — no GPU required.</p>',
-    unsafe_allow_html=True
+# ── Main UI: Tab Navigation ───────────────────────────────────────────────────
+# 1. Initialize the tab state
+if "active_tab" not in st.session_state:
+    st.session_state.active_tab = "1️⃣ Dataset Configuration"
+
+# We avoid using key="active_tab" here. We use an index based on the session state.
+# This detaches the internal widget state lock from our manual control logic.
+tabs = ["1️⃣ Dataset Configuration", "2️⃣ Model Compilation", "3️⃣ Live Inference"]
+current_index = tabs.index(st.session_state.active_tab) if st.session_state.active_tab in tabs else 0
+
+selected_tab = st.radio(
+    "Navigation", 
+    tabs, 
+    index=current_index,
+    horizontal=True, 
+    label_visibility="collapsed"
 )
 
-tab1, tab2, tab3 = st.tabs(["📁 Step 1 · Upload", "⚡ Step 2 · Train", "🔍 Step 3 · Predict"])
+# Update our session state manually if the user clicks a different tab
+if selected_tab != st.session_state.active_tab:
+    st.session_state.active_tab = selected_tab
+    st.rerun()
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# TAB 1 — UPLOAD
-# ──────────────────────────────────────────────────────────────────────────────
-with tab1:
-    st.markdown("### Upload Training Images")
-    st.markdown(
-        "Give each category a name, then upload images for it. "
-        "Repeat for every class you want to recognise. **Aim for 10+ images per class.**"
-    )
-
+# ── TAB 1: UPLOAD ─────────────────────────────────────────────────────────────
+if st.session_state.active_tab == "1️⃣ Dataset Configuration":
     col_form, col_preview = st.columns([1, 1], gap="large")
 
     with col_form:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown('<p class="card-title">Class Setup</p>', unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("<h3>Data Ingestion</h3>", unsafe_allow_html=True)
+            class_name = st.text_input("Class Label", placeholder="e.g., Target_A")
+            
+            input_mode = st.radio("Source Stream", ["📂 File System", "📷 Web Camera"], horizontal=True)
+            
+            images_to_send = []
+            if input_mode == "📂 File System":
+                uploaded_files = st.file_uploader("Drop images to ingest", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+                if uploaded_files: images_to_send = uploaded_files
+            else:
+                webcam_image = st.camera_input("Capture Stream")
+                if webcam_image: images_to_send = [webcam_image]
 
-        class_name = st.text_input(
-            "Class name",
-            placeholder="e.g. cat, dog, thumbs_up …",
-            label_visibility="collapsed"
-        )
+            if images_to_send:
+                st.markdown("<p style='font-size:0.7rem; font-weight:700; text-transform:uppercase; margin-top:15px;'>Stream Preview</p>", unsafe_allow_html=True)
+                grid_cols = st.columns(3)
+                for i, img_file in enumerate(images_to_send[:6]): 
+                    with grid_cols[i % 3]:
+                        st.image(Image.open(img_file), use_container_width=True)
+                if len(images_to_send) > 6: st.caption(f"+ {len(images_to_send)-6} more items")
 
-        input_mode = st.radio(
-            "Image source",
-            ["📂 Upload files", "📷 Webcam"],
-            horizontal=True,
-            label_visibility="collapsed"
-        )
-
-        uploaded_files = []
-        webcam_image = None
-
-        if input_mode == "📂 Upload files":
-            uploaded_files = st.file_uploader(
-                "Drop images here",
-                type=["jpg", "jpeg", "png", "webp", "bmp"],
-                accept_multiple_files=True,
-                label_visibility="collapsed"
-            )
-        else:
-            webcam_image = st.camera_input("Take a photo", label_visibility="collapsed")
-
-        # Collect all images to send
-        images_to_send = []
-        if uploaded_files:
-            images_to_send = uploaded_files
-        elif webcam_image:
-            images_to_send = [webcam_image]
-
-        # Upload button
-        upload_disabled = not class_name.strip() or not images_to_send
-        if st.button(
-            f"⬆ Upload {len(images_to_send)} image(s) as '{class_name or '…'}'" if images_to_send
-            else "⬆ Upload Images",
-            disabled=upload_disabled,
-            use_container_width=True
-        ):
-            with st.spinner("Uploading …"):
-                files_payload = [
-                    ("files", (f.name, f.getvalue(), f.type))
-                    for f in images_to_send
-                ]
-                try:
-                    resp = requests.post(
-                        f"{BACKEND_URL}/upload-sample",
-                        data={"class_name": class_name.strip()},
-                        files=files_payload,
-                        timeout=30,
-                    )
-                    if resp.status_code == 200:
-                        result = resp.json()
-                        st.success(f"✓ {result['message']}")
-                        # Invalidate training state — new data means old model is stale
-                        st.session_state.model_trained = False
-                        st.session_state.last_prediction = None
-                        st.rerun()
-                    else:
-                        st.error(f"Upload failed: {resp.json().get('detail', resp.text)}")
-                except Exception as e:
-                    st.error(f"Connection error: {e}")
-
-        st.markdown("</div>", unsafe_allow_html=True)
+            upload_disabled = not class_name.strip() or not images_to_send
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("Initialize Upload Sequence", disabled=upload_disabled, use_container_width=True, type="primary"):
+                with st.spinner(f"Transmitting to server..."):
+                    files_payload = [("files", (f.name, f.getvalue(), f.type)) for f in images_to_send]
+                    try:
+                        resp = requests.post(
+                            f"{BACKEND_URL}/upload-sample",
+                            data={"class_name": class_name.strip()}, files=files_payload, timeout=30
+                        )
+                        if resp.status_code == 200:
+                            st.toast(f"Synchronized {len(images_to_send)} vectors to {class_name}", icon="✅")
+                            st.session_state.model_trained = False
+                            st.rerun()
+                        else: st.error("Ingestion failed.")
+                    except Exception as e: st.error(f"Network error: {e}")
 
     with col_preview:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown('<p class="card-title">Dataset Overview</p>', unsafe_allow_html=True)
-
-        info = st.session_state.dataset_info
-        if info and info["total_images"] > 0:
-            for cls, count in info["classes"].items():
-                pct = count / info["total_images"]
-                bar_color = "#00ff88" if pct >= 0.2 else "#ffb347"
-                st.markdown(f"""
-                <div class="conf-bar-row">
-                    <span class="conf-bar-label">{cls}</span>
-                    <div class="conf-bar-track">
-                        <div class="conf-bar-fill" style="width:{pct*100:.0f}%; background:{bar_color};"></div>
-                    </div>
-                    <span class="conf-bar-pct">{count} img</span>
-                </div>
-                """, unsafe_allow_html=True)
-
-            min_cls = min(info["classes"], key=info["classes"].get)
-            min_cnt = info["classes"][min_cls]
-            if len(info["classes"]) < 2:
-                st.warning("⚠ Need at least **2 classes** before training.")
-            elif min_cnt < 5:
-                st.warning(f"⚠ Class **{min_cls}** has only {min_cnt} image(s). More data = better accuracy.")
+        with st.container(border=True):
+            st.markdown("<h3>Volume Distribution</h3>", unsafe_allow_html=True)
+            info = st.session_state.dataset_info
+            
+            if info and info.get("total_images", 0) > 0:
+                df = pd.DataFrame(list(info["classes"].items()), columns=["Class", "Images"])
+                
+                # Testing that st.altair_chart still renders beautifully
+                chart = alt.Chart(df).mark_bar(cornerRadiusEnd=6, height=35).encode(
+                    x=alt.X('Images:Q', title="Data Volume", axis=alt.Axis(gridColor="rgba(255,255,255,0.05)", labelColor="#64748b", titleColor="#64748b", labelFont="Space Grotesk")),
+                    y=alt.Y('Class:N', sort='-x', title="", axis=alt.Axis(labelColor="#f1f5f9", labelFontWeight="bold", labelFont="Space Grotesk")),
+                    color=alt.Color('Images:Q', scale=alt.Scale(range=['#2563eb', '#7c3aed']), legend=None),
+                    tooltip=['Class', 'Images']
+                ).properties(height=350).configure_view(strokeWidth=0)
+                st.altair_chart(chart, use_container_width=True)
             else:
-                st.success("✓ Dataset looks good! Head to Step 2 to train.")
-        else:
-            st.markdown(
-                '<p style="color:#3d4d66; font-size:0.85rem;">No images uploaded yet.</p>',
-                unsafe_allow_html=True
-            )
-        st.markdown("</div>", unsafe_allow_html=True)
+                st.markdown("""
+<div style='height: 300px; display:flex; flex-direction:column; justify-content:center; align-items:center; opacity:0.5;'>
+  <div style='font-size:3rem; margin-bottom:15px;'>📊</div>
+  <p>No data ingested yet.</p>
+</div>
+""", unsafe_allow_html=True)
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# TAB 2 — TRAIN
-# ──────────────────────────────────────────────────────────────────────────────
-with tab2:
-    st.markdown("### Train Your Model")
-
+# ── TAB 2: TRAIN ──────────────────────────────────────────────────────────────
+elif st.session_state.active_tab == "2️⃣ Model Compilation":
     info = st.session_state.dataset_info
-    has_enough = info and len(info.get("classes", {})) >= 2 and info.get("total_images", 0) > 0
+    has_enough_data = info and len(info.get("classes", {})) >= 2 and info.get("total_images", 0) > 0
 
-    if not has_enough:
-        st.info("Upload images for at least 2 classes in Step 1 before training.")
+    if not has_enough_data:
+        st.warning("⚠️ Insufficient vector volume. Ingest at least 2 target classes before compilation.")
     else:
-        col_info, col_btn = st.columns([2, 1], gap="large")
+        col_train, col_arch = st.columns([1, 1], gap="large")
+        
+        with col_train:
+            with st.container(border=True):
+                # Using st.metric to verify it renders correctly with new CSS
+                st.metric("Total Parameters", info["total_images"])
+                st.metric("Target Output Nodes", len(info["classes"]))
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                if st.session_state.model_trained:
+                    # Custom Success State
+                    classes_chips = "".join([f"<span class='class-chip'>{c}</span>" for c in info['classes'].keys()])
+                    
+                    accuracy_val = st.session_state.get('model_accuracy', 'N/A')
+                    accuracy_html = f"<h2 style='color: var(--primary); margin-bottom: 10px;'>{accuracy_val}% Overall Accuracy</h2>" if accuracy_val != "N/A" and accuracy_val is not None else ""
 
-        with col_info:
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.markdown('<p class="card-title">Training Plan</p>', unsafe_allow_html=True)
+                    st.markdown(f"""
+<div class="success-card">
+  <div class="success-icon">✨</div>
+  <div class="success-title">Model Compiled</div>
+  {accuracy_html}
+  <p style="color:var(--text-pri); margin-bottom:15px;">Weights saved and ready for inference.</p>
+  <div class="chip-container">{classes_chips}</div>
+</div>
+""", unsafe_allow_html=True)
+                else:
+                    st.markdown('<div class="train-btn-container">', unsafe_allow_html=True)
+                    if st.button("⚡ Execute Training Sequence", use_container_width=True, type="primary"):
+                        with st.spinner("Extracting features and optimizing gradients..."):
+                            try:
+                                resp = requests.post(f"{BACKEND_URL}/train", timeout=120)
+                                if resp.status_code == 200:
+                                    resp_data = resp.json()
+                                    st.session_state.model_trained = True
+                                    # Capture the accuracy sent by backend
+                                    st.session_state.model_accuracy = resp_data.get("accuracy", "N/A") 
+                                    st.session_state.active_tab = "3️⃣ Live Inference" # <-- Auto Switch tab here!
+                                    st.rerun()
+                                else: st.error("Compilation failed.")
+                            except Exception as e: st.error(f"Network error: {e}")
+                    st.markdown('</div>', unsafe_allow_html=True)
 
-            classes = info["classes"]
-            for cls, cnt in classes.items():
-                st.markdown(f"""
-                <div class="conf-bar-row">
-                    <span class="conf-bar-label">{cls}</span>
-                    <div class="conf-bar-track">
-                        <div class="conf-bar-fill" style="width:100%; background:#1d4ed8;"></div>
-                    </div>
-                    <span class="conf-bar-pct">{cnt} img</span>
-                </div>
-                """, unsafe_allow_html=True)
-
-            st.markdown(f"""
-            <hr class="divider">
-            <p style="color:#6b7a99; font-size:0.8rem;">
-                🔧 Backbone: <b style="color:#e8eaf0">MobileNetV3-Small</b> (feature extractor)<br>
-                📐 Classifier: <b style="color:#e8eaf0">Logistic Regression</b><br>
-                🖼 Input size: <b style="color:#e8eaf0">224 × 224 px</b>
-            </p>
-            """, unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        with col_btn:
-            st.markdown('<div class="card" style="text-align:center;">', unsafe_allow_html=True)
-            st.markdown(
-                f'<p style="font-size:2rem; margin:0;">🚀</p>'
-                f'<p style="font-family: Space Mono, monospace; font-size:0.72rem; color:#6b7a99; margin:0.3rem 0 1rem;">'
-                f'{info["total_images"]} images · {len(classes)} classes</p>',
-                unsafe_allow_html=True
-            )
-
-            if st.button("⚡ Train Model", use_container_width=True, type="primary"):
-                with st.spinner("Extracting features & training …"):
-                    try:
-                        resp = requests.post(f"{BACKEND_URL}/train", timeout=120)
-                        if resp.status_code == 200:
-                            result = resp.json()
-                            st.session_state.model_trained = True
-                            st.session_state.last_prediction = None
-                            st.success(
-                                f"✓ Training complete! "
-                                f"{result['total_images']} images · {len(result['classes'])} classes"
-                            )
-                        else:
-                            st.error(f"Training failed: {resp.json().get('detail', resp.text)}")
-                    except Exception as e:
-                        st.error(f"Connection error: {e}")
-
-            if st.session_state.model_trained:
-                st.markdown(
-                    '<p class="status-ok" style="margin-top:0.8rem; text-align:center;">✓ Model ready</p>',
-                    unsafe_allow_html=True
-                )
-
-            st.markdown("</div>", unsafe_allow_html=True)
+        with col_arch:
+            with st.container(border=True):
+                st.markdown("<h3>Architecture Pipeline</h3>", unsafe_allow_html=True)
+                # Vertical Timeline HTML
+                st.markdown("""
+<div class="timeline">
+  <div class="tl-item">
+    <div class="tl-dot">1</div>
+    <div class="tl-content">
+      <div class="tl-title">Feature Extraction</div>
+      <div class="tl-desc">Pre-trained MobileNetV3 extracts a 960-dimensional vector for each image, skipping raw pixel training.</div>
+    </div>
+  </div>
+  <div class="tl-item">
+    <div class="tl-dot">2</div>
+    <div class="tl-content">
+      <div class="tl-title">Logistic Classification</div>
+      <div class="tl-desc">An SKLearn Logistic Regression model calculates boundary weights across the extracted feature space.</div>
+    </div>
+  </div>
+  <div class="tl-item">
+    <div class="tl-dot">3</div>
+    <div class="tl-content">
+      <div class="tl-title">Serialization</div>
+      <div class="tl-desc">Model topology and computed weights are pickled and persisted to the backend disk.</div>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# TAB 3 — PREDICT
-# ──────────────────────────────────────────────────────────────────────────────
-with tab3:
-    st.markdown("### Live Prediction")
-
+# ── TAB 3: PREDICT ────────────────────────────────────────────────────────────
+elif st.session_state.active_tab == "3️⃣ Live Inference":
     if not st.session_state.model_trained:
-        st.info("Train your model in Step 2 before running predictions.")
+        st.info("⚠️ Weights not found. Execute compilation sequence in Step 2.")
     else:
         col_input, col_result = st.columns([1, 1], gap="large")
+        
+        # 1. First, define the scanner placeholder in the right column BEFORE using it in the left column
+        with col_result:
+            scanner_ph = st.empty()
 
+        # 2. Then, define the input logic in the left column
         with col_input:
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.markdown('<p class="card-title">Test Image</p>', unsafe_allow_html=True)
+            with st.container(border=True):
+                st.markdown("<h3>Input Tensor</h3>", unsafe_allow_html=True)
+                pred_mode = st.radio("Source", ["📂 File Upload", "📷 Camera Capture"], horizontal=True, label_visibility="collapsed")
+                
+                test_image = None
+                if pred_mode == "📂 File Upload": test_image = st.file_uploader("Upload test tensor", type=["jpg", "jpeg", "png"])
+                else: test_image = st.camera_input("Capture tensor")
 
-            pred_mode = st.radio(
-                "Source",
-                ["📂 Upload file", "📷 Webcam"],
-                horizontal=True,
-                label_visibility="collapsed"
-            )
+                if test_image:
+                    st.image(Image.open(test_image), use_container_width=True, output_format="PNG")
+                    test_image.seek(0)
+                    
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    if st.button("🔍 Run Inference", use_container_width=True, type="primary"):
+                        
+                        # Clear old prediction off screen while scanning
+                        st.session_state.last_prediction = None 
 
-            test_image = None
-            if pred_mode == "📂 Upload file":
-                test_image = st.file_uploader(
-                    "Upload test image",
-                    type=["jpg", "jpeg", "png", "webp", "bmp"],
-                    label_visibility="collapsed",
-                    key="pred_uploader"
-                )
-            else:
-                test_image = st.camera_input("Capture", label_visibility="collapsed", key="pred_cam")
-
-            if test_image:
-                img_preview = Image.open(test_image)
-                st.image(img_preview, use_container_width=True, caption="Test image")
-
-                test_image.seek(0)  # Reset file pointer after PIL read
-
-                if st.button("🔍 Classify", use_container_width=True, type="primary"):
-                    with st.spinner("Running inference …"):
+                        # Show CSS Scanner inside placeholder
+                        scanner_ph.markdown("""
+<div class="scanner-container">
+  <div class="scanner-text">Processing Tensor</div>
+  <div class="scanner-line"></div>
+</div>
+""", unsafe_allow_html=True)
+                        
                         try:
                             resp = requests.post(
                                 f"{BACKEND_URL}/predict",
-                                files={"file": (test_image.name, test_image.getvalue(), test_image.type)},
-                                timeout=30,
+                                files={"file": (test_image.name, test_image.getvalue(), test_image.type)}, timeout=30
                             )
                             if resp.status_code == 200:
                                 st.session_state.last_prediction = resp.json()
-                            else:
-                                st.error(f"Prediction error: {resp.json().get('detail', resp.text)}")
-                        except Exception as e:
-                            st.error(f"Connection error: {e}")
+                            else: st.error("Inference error.")
+                        except Exception as e: st.error(f"Network error: {e}")
+                        finally:
+                            scanner_ph.empty() # Remove scanner
 
-            st.markdown("</div>", unsafe_allow_html=True)
-
+        # 3. Finally, render the actual results in the right column if they exist
         with col_result:
             pred = st.session_state.last_prediction
-
             if pred:
-                conf_pct = int(pred["confidence"] * 100)
+                # Math for SVG circular progress
+                conf_val = pred['confidence']
+                dash_array = f"{conf_val * 100}, 100"
 
-                # Prediction result box
                 st.markdown(f"""
-                <div class="prediction-box">
-                    <p class="prediction-label">Predicted Class</p>
-                    <p class="prediction-class">{pred['predicted_class']}</p>
-                    <p class="prediction-conf">{conf_pct}% confidence</p>
-                </div>
-                """, unsafe_allow_html=True)
-
-                # Confidence bars for all classes
-                st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.markdown('<p class="card-title">All Class Scores</p>', unsafe_allow_html=True)
-
-                # Sort by score descending
-                sorted_scores = sorted(
-                    pred["all_scores"].items(), key=lambda x: x[1], reverse=True
-                )
-                total = len(sorted_scores)
-
-                for i, (cls, score) in enumerate(sorted_scores):
-                    is_winner = (cls == pred["predicted_class"])
-                    bar_color = color_for_index(i, total)
-                    score_pct = score * 100
-                    label_style = "color:#00ff88; font-weight:700;" if is_winner else ""
-
-                    st.markdown(f"""
-                    <div class="conf-bar-row">
-                        <span class="conf-bar-label" style="{label_style}">
-                            {"▶ " if is_winner else ""}{cls}
-                        </span>
-                        <div class="conf-bar-track">
-                            <div class="conf-bar-fill"
-                                 style="width:{score_pct:.1f}%; background:{bar_color};">
-                            </div>
-                        </div>
-                        <span class="conf-bar-pct">{score_pct:.1f}%</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                st.markdown("</div>", unsafe_allow_html=True)
-
-                # Quick bar chart via Streamlit native (bonus visual)
-                st.markdown('<p class="card-title" style="margin-top:0.5rem;">Score Chart</p>', unsafe_allow_html=True)
-                chart_data = {cls: score for cls, score in sorted_scores}
-                st.bar_chart(chart_data)
-
-            else:
-                st.markdown(
-                    '<div class="card" style="text-align:center; padding:3rem 1rem;">'
-                    '<p style="font-size:2.5rem; margin:0;">🔍</p>'
-                    '<p style="color:#6b7a99; font-size:0.85rem; margin-top:0.5rem;">'
-                    'Upload or capture an image<br>and click Classify.</p>'
-                    '</div>',
-                    unsafe_allow_html=True
-                )
+<svg width="0" height="0">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7c3aed" />
+      <stop offset="100%" stop-color="#2563eb" />
+    </linearGradient>
+  </defs>
+</svg>
+<div class="result-hero-wrapper">
+  <div class="result-hero-inner">
+    <div class="rh-label">Inference Output</div>
+    <div class="rh-class">{pred['predicted_class']}</div>
+    <div class="circle-wrap">
+      <svg class="circle-chart" viewBox="0 0 36 36">
+        <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+        <path class="circle-fill" stroke-dasharray="{dash_array}" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+      </svg>
+      <div class="circle-text">{conf_val*100:.0f}%</div>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+                
+                with st.container(border=True):
+                    st.markdown("<h3>Softmax Activation Scores</h3>", unsafe_allow_html=True)
+                    
+                    # Custom Pure HTML/CSS Animated Bar Chart
+                    sorted_scores = sorted(pred["all_scores"].items(), key=lambda x: x[1], reverse=True)
+                    bars_html = "<div class='custom-bar-chart'>"
+                    
+                    for cls, score in sorted_scores:
+                        pct = score * 100
+                        is_winner = cls == pred["predicted_class"]
+                        fill_class = "winner" if is_winner else "loser"
+                        label_color = "var(--text-pri)" if is_winner else "var(--text-sec)"
+                        
+                        bars_html += f"""
+<div class="cb-row">
+  <div class="cb-label" style="color:{label_color}">{cls}</div>
+  <div class="cb-track">
+    <div class="cb-fill {fill_class}" style="--target-width: {pct}%;"></div>
+  </div>
+  <div class="cb-val">{pct:.1f}%</div>
+</div>
+"""
+                    bars_html += "</div>"
+                    st.markdown(bars_html, unsafe_allow_html=True)
+            elif not st.session_state.last_prediction:
+                st.markdown("""
+<div style="height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--text-mut); min-height: 400px; border: 1px dashed var(--border); border-radius: 24px;">
+  <div style="font-size:3rem; margin-bottom:10px;">🎯</div>
+  <div style="text-align:center;">Awaiting input tensor...</div>
+</div>
+""", unsafe_allow_html=True)
